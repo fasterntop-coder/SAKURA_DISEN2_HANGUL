@@ -118,6 +118,21 @@ if ! command -v clang-21 >/dev/null 2>&1; then
 fi
 command -v clang++-21
 
+STEP=rebuild-ps4-nfs-and-smb-libraries
+# These static libraries are missing from the 127MB SDK v2 snapshot.
+# Use the exact commits specified by upstream ReSONANCE patches/BASE.txt.
+if [[ ! -s "$PS4_BUILD_ROOT/sysroot/lib/libnfs.a" || ! -s "$PS4_BUILD_ROOT/sysroot/lib/libsmb2.a" ]]; then
+  mkdir -p "$PS4_BUILD_ROOT/src"
+  git clone --quiet https://github.com/sahlberg/libnfs.git "$PS4_BUILD_ROOT/src/libnfs"
+  git -C "$PS4_BUILD_ROOT/src/libnfs" checkout --quiet 7613236464317bee2d9636f087f995148de4db27
+  git clone --quiet https://github.com/sahlberg/libsmb2.git "$PS4_BUILD_ROOT/src/libsmb2"
+  git -C "$PS4_BUILD_ROOT/src/libsmb2" checkout --quiet e94eee9465d55ed094ace2c038a8705b4822dada
+  bash "$BASE/resonance/scripts/build-netfs.sh"
+  test -s "$PS4_BUILD_ROOT/sysroot/lib/libnfs.a"
+  test -s "$PS4_BUILD_ROOT/sysroot/lib/libsmb2.a"
+fi
+echo 'PS4 static NFS and SMB libraries ready'
+
 STEP=fix-original-logrun-path
 # ReSONANCE logrun.sh always writes under $HOME/resonance-build/logs,
 # while our ephemeral GitHub build uses $PS4_BUILD_ROOT/logs.
