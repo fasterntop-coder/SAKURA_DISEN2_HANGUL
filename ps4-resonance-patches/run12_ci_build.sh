@@ -134,7 +134,7 @@ import re,sys
 p=Path(sys.argv[1]);s=p.read_text()
 targets=('sin6->sin6_len', '((struct sockaddr_in6 *)&rpc->s)->sin6_len')
 for target in targets:
-    patt=r'(?m)^([ \\t]*)#ifdef HAVE_SOCKADDR_LEN(?=\\n[ \\t]*'+re.escape(target)+')'
+    patt=r'(?m)^([ \t]*)#ifdef HAVE_SOCKADDR_LEN(?=\n[ \t]*'+re.escape(target)+')'
     s,n=re.subn(patt, lambda m:m.group(1)+'#if defined(HAVE_SOCKADDR_LEN) && !defined(__ORBIS__)', s)
     assert n==1,(target,n)
 p.write_text(s)
