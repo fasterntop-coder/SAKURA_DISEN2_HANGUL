@@ -40,3 +40,44 @@ jobs:
           path: run13_output/
           if-no-files-found: warn
           retention-days: 14
+  package-windows:
+    name: Package experimental PS4 build on Windows
+    needs: ps4
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout test branch
+        uses: actions/checkout@v4
+      - name: Retrieve cross-compiled PS4 eboot
+        uses: actions/download-artifact@v4
+        with:
+          name: resonance-st2-run13-build
+          path: run13_eboot
+      - name: Restore verified SDK v2 Windows packaging tools
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force sdk | Out-Null
+          $url='https://github.com/Phoenixx1202/PS4SX2-SDK/releases/download/sdk-v2/ps4sx2-sdk-v2.tar.gz'
+          & curl.exe -fL --retry 4 --retry-all-errors -o ps4sx2-sdk-v2.tar.gz $url
+          if($LASTEXITCODE -ne 0) {throw 'SDK download failed'}
+          $sha=(Get-FileHash -Algorithm SHA256 ps4sx2-sdk-v2.tar.gz).Hash.ToLowerInvariant()
+          if($sha -ne '0d7261c3e6c8e8d8e2e71d13ee9f39bcba8936fa1d50dbfce6e279c3c4e99822') {throw "SDK SHA256 mismatch $sha"}
+          tar.exe -xzf ps4sx2-sdk-v2.tar.gz -C sdk
+          if($LASTEXITCODE -ne 0) {throw 'SDK extract failed'}
+      - name: Clone open-source ReSONANCE package assets
+        shell: pwsh
+        run: |
+          & git clone --depth 1 --branch v01.41 https://github.com/iHaiDeeZ/Resonance.git resonance-src
+          if($LASTEXITCODE -ne 0) {throw 'ReSONANCE asset clone failed'}
+      - name: Build and validate PS4 01.42 test PKG
+        shell: pwsh
+        run: |
+          & ./resonance/run13_pack_windows.ps1 -Eboot "$PWD/run13_eboot/eboot.bin" -SdkRoot "$PWD/sdk" -ResonanceSource "$PWD/resonance-src" -OutputDir "$PWD/run13_pkg_output"
+      - name: Upload validated test PKG or build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resonance-st2-run13-windows-pkg
+          path: run13_pkg_output/
+          if-no-files-found: warn
+          retention-days: 14
