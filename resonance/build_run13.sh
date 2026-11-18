@@ -66,7 +66,13 @@ export PS4_SYSROOT="$WORK/sysroot"
 export FLYCAST_SRC="$FLY"
 export CRM="$WORK/no-crema"
 export JOBS=2
-for path in "$OPENORBIS/ps4vars.sh" "$OPENORBIS/bin/create-fself" "$OPENORBIS/bin/linux/PkgTool.Core" "$SDK/linux/sysroot/lib/libc++.a" "$SDK/linux/mesa/src/amd/vulkan/libvulkan_radeon.a"; do
+# SDK v2 is a curated export; it omits ps4vars.sh and Linux PkgTool.
+# Create a transparent environment shim for CMake; real PKG packaging is a separate Windows job.
+cat > "$OPENORBIS/ps4vars.sh" <<'EOENV'
+export OO_PS4_TOOLCHAIN="$OPENORBIS"
+export PATH="$OPENORBIS/bin:$PATH"
+EOENV
+for path in "$OPENORBIS/cmake/ps4.cmake" "$OPENORBIS/bin/create-fself" "$SDK/linux/sysroot/lib/libc++.a" "$SDK/linux/mesa/src/amd/vulkan/libvulkan_radeon.a"; do
   test -f "$path" || { say "MISSING SDK: $path"; exit 71; }
 done
 ln -s "$SDK/linux/sysroot" "$WORK/sysroot"
@@ -77,12 +83,7 @@ bash "$RES/scripts/configure-flycast.sh"
 bash "$RES/scripts/build-flycast.sh" -k 0
 EBOOT="$WORK/build/flycast/shell/ps4/flycast_eboot/eboot.bin"
 test -s "$EBOOT" || { say "MISSING eboot.bin"; exit 72; }
-say "Assemble homebrew PKG v01.42"
-RESONANCE_VERSION=01.42 bash "$RES/scripts/package-resonance.sh"
-PKG="$RES/out/Resonance-v01.42.pkg"
-test -s "$PKG" || { say "MISSING built PKG"; exit 73; }
 mkdir -p "$GITHUB_WORKSPACE/run13_output"
 cp "$EBOOT" "$GITHUB_WORKSPACE/run13_output/eboot.bin"
-cp "$PKG" "$GITHUB_WORKSPACE/run13_output/Resonance-v01.42.pkg"
-sha256sum "$GITHUB_WORKSPACE/run13_output/"* | tee "$GITHUB_WORKSPACE/run13_output/SHA256SUMS.txt"
-say "PKG_CREATED_UNTESTED on hardware: $PKG"
+sha256sum "$GITHUB_WORKSPACE/run13_output/eboot.bin" | tee "$GITHUB_WORKSPACE/run13_output/SHA256SUMS.txt"
+say "EBOOT_COMPILED; Linux SDK v2 has no PkgTool, Windows PKG packaging required."
