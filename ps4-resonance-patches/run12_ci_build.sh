@@ -127,6 +127,20 @@ if [[ ! -s "$PS4_BUILD_ROOT/sysroot/lib/libnfs.a" || ! -s "$PS4_BUILD_ROOT/sysro
   git -C "$PS4_BUILD_ROOT/src/libnfs" checkout --quiet 7613236464317bee2d9636f087f995148de4db27
   git clone --quiet https://github.com/sahlberg/libsmb2.git "$PS4_BUILD_ROOT/src/libsmb2"
   git -C "$PS4_BUILD_ROOT/src/libsmb2" checkout --quiet e94eee9465d55ed094ace2c038a8705b4822dada
+  STEP=patch-target-specific-ipv6-sockaddr-guard
+  python3 - "$PS4_BUILD_ROOT/src/libnfs/lib/socket.c" <<'PYNET'
+from pathlib import Path
+import re,sys
+p=Path(sys.argv[1]);s=p.read_text()
+targets=('sin6->sin6_len', '((struct sockaddr_in6 *)&rpc->s)->sin6_len')
+for target in targets:
+    patt=r'(?m)^([ \\t]*)#ifdef HAVE_SOCKADDR_LEN(?=\\n[ \\t]*'+re.escape(target)+')'
+    s,n=re.subn(patt, lambda m:m.group(1)+'#if defined(HAVE_SOCKADDR_LEN) && !defined(__ORBIS__)', s)
+    assert n==1,(target,n)
+p.write_text(s)
+print('PS4 IPv6 sockaddr structure compatibility guards applied: 2')
+PYNET
+  STEP=rebuild-ps4-nfs-and-smb-libraries
   bash "$BASE/resonance/scripts/build-netfs.sh"
   test -s "$PS4_BUILD_ROOT/sysroot/lib/libnfs.a"
   test -s "$PS4_BUILD_ROOT/sysroot/lib/libsmb2.a"
