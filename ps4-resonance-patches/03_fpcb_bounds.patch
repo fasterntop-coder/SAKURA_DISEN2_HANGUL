@@ -1,0 +1,22 @@
+--- a/shell/ps4/ps4_vmem.cpp
++++ b/shell/ps4/ps4_vmem.cpp
+@@ -257,6 +257,19 @@
+ {
+ 	u8 *fpcbStart = sh4rcbBase;
+ 	u8 *fpcbEnd = sh4rcbBase + kFpcbSize;
++	// Never derive a chunk index from an address outside the FPCB.
++	// Subtracting unsigned addresses here can underflow and hide a bad fault.
++	const uintptr_t faultAddr = reinterpret_cast<uintptr_t>(address);
++	const uintptr_t firstAddr = reinterpret_cast<uintptr_t>(fpcbStart);
++	const uintptr_t lastAddr = reinterpret_cast<uintptr_t>(fpcbEnd);
++	if (faultAddr < firstAddr || faultAddr >= lastAddr || size_bytes == 0
++			|| static_cast<size_t>(size_bytes) > lastAddr - faultAddr)
++	{
++		trace("vmem: invalid FPCB demand page: address %p, bytes %u, range [%p, %p)",
++				address, size_bytes, fpcbStart, fpcbEnd);
++		verify(false);
++		return;
++	}
+ 	u8 *start = std::max(fpcbStart, (u8 *)((uintptr_t)address & ~(uintptr_t)(kLarge - 1)));
+ 	u8 *end = std::min(fpcbEnd, (u8 *)(((uintptr_t)address & ~(uintptr_t)(kLarge - 1)) + kLarge));
+ 	// pieces numbered from the 2 MiB boundary at or below the fpcb's start
