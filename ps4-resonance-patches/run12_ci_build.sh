@@ -151,6 +151,16 @@ STEP=build-missing-ps4-openssl-and-curl
 if [[ ! -s "$PS4_SYSROOT/lib/libssl.a" || ! -s "$PS4_SYSROOT/lib/libcrypto.a" ]]; then
   echo 'Missing PS4 OpenSSL archives: compiling OpenSSL 1.1.1w for x86_64 FreeBSD PS4 target'
   git clone --quiet --depth 1 --branch OpenSSL_1_1_1w https://github.com/openssl/openssl.git "$PS4_BUILD_ROOT/src/openssl"
+  python3 - "$PS4_BUILD_ROOT/src/openssl/crypto/bio/bss_dgram.c" <<'PYSSL'
+from pathlib import Path
+import sys
+p=Path(sys.argv[1]);s=p.read_text()
+old='# if defined(__FreeBSD__) && defined(IN6_IS_ADDR_V4MAPPED)'
+new=old+' && !defined(__ORBIS__)'
+assert s.count(old)==1
+p.write_text(s.replace(old,new))
+print('OpenSSL PS4 IPv6 in6_addr compatibility guard installed')
+PYSSL
   (
     cd "$PS4_BUILD_ROOT/src/openssl"
     export CC=clang-21 AR=llvm-ar-21 RANLIB=llvm-ranlib-21
