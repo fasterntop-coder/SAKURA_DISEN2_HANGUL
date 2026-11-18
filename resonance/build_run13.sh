@@ -38,6 +38,7 @@ PY
 git -C "$FLY" apply --check "$WORK/ps4-port.patch"
 git -C "$FLY" apply "$WORK/ps4-port.patch"
 python3 "$GITHUB_WORKSPACE/resonance/run13_patch.py" "$FLY"
+python3 "$GITHUB_WORKSPACE/resonance/run13_offline_patch.py" "$FLY" "$RES"
 say "PS4 source ready, install Clang 21 and SDK prerequisites"
 sudo apt-get update -y
 sudo apt-get install -y ca-certificates curl git cmake ninja-build python3 unzip xz-utils tar pkg-config make build-essential libxml2 libtinfo6 zlib1g gnupg
@@ -78,39 +79,14 @@ done
 ln -s "$SDK/linux/sysroot" "$WORK/sysroot"
 ln -s "$SDK/linux/mesa" "$WORK/build/mesa"
 mkdir -p "$WORK/logs" "$WORK/oelf" "$WORK/out"
-say "Inspect PS4 sysroot dependencies before compiling"
-for dep in libnfs.a libsmb2.a libcurl.a libssl.a libcrypto.a libdolphinps4_rt.a libzstd.a liblz4.a; do
-  test -e "$WORK/sysroot/lib/$dep" && echo "PRESENT $dep" || echo "MISSING $dep"
-done
-say "Build pinned PS4 netfs libs from their public source repositories"
-git clone https://github.com/sahlberg/libnfs.git "$WORK/src/libnfs"
-git -C "$WORK/src/libnfs" checkout 7613236464317bee2d9636f087f995148de4db27
-git clone https://github.com/sahlberg/libsmb2.git "$WORK/src/libsmb2"
-git -C "$WORK/src/libsmb2" checkout e94eee9465d55ed094ace2c038a8705b4822dada
-say "Fix libnfs PS4 sockaddr_in6 ABI (no sin6_len member)"
-python3 - "$WORK/src/libnfs/lib/socket.c" <<'PYFIX'
-from pathlib import Path
-import sys
-p=Path(sys.argv[1]); s=p.read_text()
-needle="#ifdef HAVE_SOCKADDR_LEN"
-assert s.count(needle)>=2, "unexpected libnfs revision"
-pos=s.index("sin6->sin6_len")
-start=s.rfind(needle,0,pos)
-s=s[:start]+s[start:].replace(needle, "#if defined(HAVE_SOCKADDR_LEN) && !defined(__ORBIS__)",1)
-pos=s.index("((struct sockaddr_in6 *)&rpc->s)->sin6_len")
-start=s.rfind(needle,0,pos)
-s=s[:start]+s[start:].replace(needle, "#if defined(HAVE_SOCKADDR_LEN) && !defined(__ORBIS__)",1)
-p.write_text(s)
-PYFIX
-say "Install zstd and lz4 libraries from the verified SDK v2 dependency prefix"
+say "Prepare only local-disc BIOS trial; networking features intentionally disabled"
 for lib in libzstd.a liblz4.a; do
   test -s "$SDK/linux/prefix/lib/$lib" && cp "$SDK/linux/prefix/lib/$lib" "$WORK/sysroot/lib/$lib"
 done
-say "Build required native OpenOrbis malloc replacement library"
 export PSB="$WORK"
+chmod +x "$RES/toolchain/bin/ps4-cc" "$RES/toolchain/bin/ps4-c++"
 bash "$RES/toolchain/build-runtime.sh"
-bash "$RES/scripts/build-netfs.sh"
-say "Netfs cross-compile complete"
+say "PS4 target run-time library built; start Flycast offline local-disc compile"
 say "Compile Flycast for PS4/FreeBSD ABI"
 bash "$RES/scripts/configure-flycast.sh"
 bash "$RES/scripts/build-flycast.sh" -k 0
