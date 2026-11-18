@@ -1,0 +1,19 @@
+--- a/shell/ps4/ps4_vmem.cpp
++++ b/shell/ps4/ps4_vmem.cpp
+@@ -247,6 +247,16 @@
+ // The fpcb goes back to faulting on first access.
+ void reset_mem(void *ptr, unsigned size_bytes)
+ {
++	// Clearing every chunk flag is only valid when the entire FPCB is unmapped.
++	// A partial reset would leave some mapped chunks marked as unmapped, so a
++	// subsequent demand fault could map over a still-live chunk.
++	if (sh4rcbBase == nullptr || ptr != sh4rcbBase || size_bytes != kFpcbSize)
++	{
++		trace("vmem: unexpected FPCB reset range %p, bytes %u (expected %p, %zu)",
++				ptr, size_bytes, sh4rcbBase, kFpcbSize);
++		verify(false);
++		return;
++	}
+ 	unmapToReserved(ptr, size_bytes);
+ 	std::fill(fpcbChunkMapped.begin(), fpcbChunkMapped.end(), false);
+ }
