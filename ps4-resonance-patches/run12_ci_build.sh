@@ -201,6 +201,18 @@ if [[ ! -s "$PS4_SYSROOT/lib/libcurl.a" ]]; then
     -DCURL_DISABLE_DICT=ON -DCURL_DISABLE_GOPHER=ON -DCURL_DISABLE_IMAP=ON \
     -DCURL_DISABLE_POP3=ON -DCURL_DISABLE_SMTP=ON -DCURL_DISABLE_TELNET=ON \
     -DCURL_DISABLE_TFTP=ON -DCURL_DISABLE_RTSP=ON -DCURL_DISABLE_MQTT=ON
+  # PS4 / FreeBSD target does not expose Linux SOL_IP; the optional
+  # IP_BIND_ADDRESS_NO_PORT optimization is skipped when its socket level is absent.
+  python3 - "$PS4_BUILD_ROOT/src/curl/lib/cf-socket.c" <<'PYSOLIP'
+from pathlib import Path
+import sys
+p=Path(sys.argv[1]); s=p.read_text()
+needle='(void)setsockopt(sockfd, SOL_IP, IP_BIND_ADDRESS_NO_PORT, &on, sizeof(on));'
+assert s.count(needle)==1, 'Unexpected libcurl version: SOL_IP callsite changed'
+s=s.replace(needle, '#if defined(SOL_IP)\\n'+needle+'\\n#endif'.replace('\\n','\n'))
+p.write_text(s)
+print('Run13: guard Linux-specific SOL_IP option when absent on PS4 target')
+PYSOLIP
   ninja -C "$PS4_BUILD_ROOT/build/curl" -j2
   ninja -C "$PS4_BUILD_ROOT/build/curl" install
 fi
