@@ -147,6 +147,42 @@ PYNET
 fi
 echo 'PS4 static NFS and SMB libraries ready'
 
+STEP=build-missing-ps4-openssl-and-curl
+if [[ ! -s "$PS4_SYSROOT/lib/libssl.a" || ! -s "$PS4_SYSROOT/lib/libcrypto.a" ]]; then
+  echo 'Missing PS4 OpenSSL archives: compiling OpenSSL 1.1.1w for x86_64 FreeBSD PS4 target'
+  git clone --quiet --depth 1 --branch OpenSSL_1_1_1w https://github.com/openssl/openssl.git "$PS4_BUILD_ROOT/src/openssl"
+  (
+    cd "$PS4_BUILD_ROOT/src/openssl"
+    export CC=clang-21 AR=llvm-ar-21 RANLIB=llvm-ranlib-21
+    export CFLAGS="-target x86_64-pc-freebsd12-elf -D__ORBIS__ -D__PS4__ -D__OPENORBIS__ -fPIC --sysroot=$OPENORBIS -I$OPENORBIS/include -I$PS4_SYSROOT/include"
+    ./Configure BSD-x86_64 no-shared no-asm no-tests no-dso no-threads no-idea no-md2 --prefix="$PS4_SYSROOT" --openssldir="$PS4_SYSROOT/etc/ssl"
+    make -j2 build_libs
+    make install_sw
+  )
+fi
+test -s "$PS4_SYSROOT/lib/libssl.a"
+test -s "$PS4_SYSROOT/lib/libcrypto.a"
+if [[ ! -s "$PS4_SYSROOT/lib/libcurl.a" ]]; then
+  echo 'Missing PS4 libcurl archive: compiling curl with OpenSSL and minimal protocols'
+  git clone --quiet --depth 1 --branch curl-8_10_1 https://github.com/curl/curl.git "$PS4_BUILD_ROOT/src/curl"
+  cmake -S "$PS4_BUILD_ROOT/src/curl" -B "$PS4_BUILD_ROOT/build/curl" -G Ninja \
+    -DCMAKE_TOOLCHAIN_FILE="$BASE/resonance/toolchain/ps4-deps.cmake" \
+    -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PS4_SYSROOT" \
+    -DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON -DBUILD_CURL_EXE=OFF -DBUILD_TESTING=OFF \
+    -DCURL_USE_OPENSSL=ON -DOPENSSL_ROOT_DIR="$PS4_SYSROOT" \
+    -DCURL_DISABLE_LDAP=ON -DCURL_USE_LIBPSL=OFF -DCURL_USE_LIBSSH2=OFF \
+    -DCURL_USE_LIBIDN2=OFF -DCURL_ZLIB=OFF -DCURL_BROTLI=OFF -DCURL_ZSTD=OFF \
+    -DCURL_DISABLE_DICT=ON -DCURL_DISABLE_GOPHER=ON -DCURL_DISABLE_IMAP=ON \
+    -DCURL_DISABLE_POP3=ON -DCURL_DISABLE_SMTP=ON -DCURL_DISABLE_TELNET=ON \
+    -DCURL_DISABLE_TFTP=ON -DCURL_DISABLE_RTSP=ON -DCURL_DISABLE_MQTT=ON
+  ninja -C "$PS4_BUILD_ROOT/build/curl" -j2
+  ninja -C "$PS4_BUILD_ROOT/build/curl" install
+fi
+for archive in libcurl.a libssl.a libcrypto.a; do
+  test -s "$PS4_SYSROOT/lib/$archive" || { echo "MISSING: $archive after source build"; exit 48; }
+  ls -lh "$PS4_SYSROOT/lib/$archive"
+done
+
 STEP=fix-original-logrun-path
 # ReSONANCE logrun.sh always writes under $HOME/resonance-build/logs,
 # while our ephemeral GitHub build uses $PS4_BUILD_ROOT/logs.
