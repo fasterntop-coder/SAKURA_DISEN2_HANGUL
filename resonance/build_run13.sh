@@ -87,6 +87,28 @@ git clone https://github.com/sahlberg/libnfs.git "$WORK/src/libnfs"
 git -C "$WORK/src/libnfs" checkout 7613236464317bee2d9636f087f995148de4db27
 git clone https://github.com/sahlberg/libsmb2.git "$WORK/src/libsmb2"
 git -C "$WORK/src/libsmb2" checkout e94eee9465d55ed094ace2c038a8705b4822dada
+say "Fix libnfs PS4 sockaddr_in6 ABI (no sin6_len member)"
+python3 - "$WORK/src/libnfs/lib/socket.c" <<'PYFIX'
+from pathlib import Path
+import sys
+p=Path(sys.argv[1]); s=p.read_text()
+needle="#ifdef HAVE_SOCKADDR_LEN"
+assert s.count(needle)>=2, "unexpected libnfs revision"
+pos=s.index("sin6->sin6_len")
+start=s.rfind(needle,0,pos)
+s=s[:start]+s[start:].replace(needle, "#if defined(HAVE_SOCKADDR_LEN) && !defined(__ORBIS__)",1)
+pos=s.index("((struct sockaddr_in6 *)&rpc->s)->sin6_len")
+start=s.rfind(needle,0,pos)
+s=s[:start]+s[start:].replace(needle, "#if defined(HAVE_SOCKADDR_LEN) && !defined(__ORBIS__)",1)
+p.write_text(s)
+PYFIX
+say "Install zstd and lz4 libraries from the verified SDK v2 dependency prefix"
+for lib in libzstd.a liblz4.a; do
+  test -s "$SDK/linux/prefix/lib/$lib" && cp "$SDK/linux/prefix/lib/$lib" "$WORK/sysroot/lib/$lib"
+done
+say "Build required native OpenOrbis malloc replacement library"
+export PSB="$WORK"
+bash "$RES/toolchain/build-runtime.sh"
 bash "$RES/scripts/build-netfs.sh"
 say "Netfs cross-compile complete"
 say "Compile Flycast for PS4/FreeBSD ABI"
