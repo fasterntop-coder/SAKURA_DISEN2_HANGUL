@@ -69,6 +69,21 @@ echo "$SDK_SHA  $BASE/ps4sx2-sdk-v2.tar.gz" | sha256sum -c -
 mkdir -p "$BASE/sdk"
 tar -xzf "$BASE/ps4sx2-sdk-v2.tar.gz" -C "$BASE/sdk"
 
+STEP=inventory-sdk-layout
+python3 - "$BASE/sdk" "$OUT/sdk-layout.txt" <<'PYINV'
+from pathlib import Path
+import sys
+root=Path(sys.argv[1]); dest=Path(sys.argv[2])
+patterns=['**/ps4vars.sh','**/ps4.cmake','**/PkgTool.Core','**/create-fself','**/libc++.a','**/libc++abi.a','**/libvulkan_radeon.a','**/clang*','**/*.prx']
+with dest.open('w') as o:
+    for pattern in patterns:
+        found=list(root.glob(pattern))
+        print(f'{pattern}: {len(found)}',file=o)
+        for path in found[:25]: print('  '+str(path.relative_to(root)),file=o)
+    print('Top-level SDK entries:',file=o)
+    for path in sorted(root.iterdir()): print('  '+str(path.relative_to(root)),file=o)
+print(dest.read_text())
+PYINV
 STEP=validate-sdk-and-mesa
 export OPENORBIS="$BASE/sdk/linux/openorbis"
 export PS4_BUILD_ROOT="$BASE/buildroot"
