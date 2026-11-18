@@ -165,7 +165,7 @@ PYSSL
     cd "$PS4_BUILD_ROOT/src/openssl"
     export CC=clang-21 AR=llvm-ar-21 RANLIB=llvm-ranlib-21
     export CFLAGS="-target x86_64-pc-freebsd12-elf -D__ORBIS__ -D__PS4__ -D__OPENORBIS__ -fPIC --sysroot=$OPENORBIS -I$OPENORBIS/include -I$PS4_SYSROOT/include"
-    ./Configure BSD-x86_64 no-shared no-asm no-tests no-dso no-threads no-idea no-md2 --prefix="$PS4_SYSROOT" --openssldir="$PS4_SYSROOT/etc/ssl"
+    ./Configure BSD-x86_64 no-shared no-asm no-tests no-dso no-threads no-devcryptoeng no-idea no-md2 --prefix="$PS4_SYSROOT" --openssldir="$PS4_SYSROOT/etc/ssl"
     make -j2 build_libs
     make install_sw
   )
