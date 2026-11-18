@@ -118,6 +118,16 @@ if ! command -v clang-21 >/dev/null 2>&1; then
 fi
 command -v clang++-21
 
+STEP=fix-original-logrun-path
+# ReSONANCE logrun.sh always writes under $HOME/resonance-build/logs,
+# while our ephemeral GitHub build uses $PS4_BUILD_ROOT/logs.
+# Point both to one location so errors are retained and printed.
+if [[ -e "$HOME/resonance-build" && ! -L "$HOME/resonance-build" ]]; then
+  echo "ERROR: refusing to replace existing $HOME/resonance-build" >&2; exit 47
+fi
+ln -sfn "$PS4_BUILD_ROOT" "$HOME/resonance-build"
+echo "Merged ReSONANCE logrun output path into ephemeral PS4_BUILD_ROOT"
+
 STEP=actual-ps4-cmake-compile-link
 # Explicitly use the extracted Mesa static build, not a nonexisting HOME/resonance-build copy.
 sed -i 's|-DUSE_VULKAN=ON|-DPS4_MESA_BUILD="$PS4_BUILD_ROOT/build/mesa" -DUSE_VULKAN=ON|' "$BASE/resonance/scripts/configure-flycast.sh"
