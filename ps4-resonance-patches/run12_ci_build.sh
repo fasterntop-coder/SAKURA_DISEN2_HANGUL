@@ -209,7 +209,7 @@ import sys
 p=Path(sys.argv[1]); s=p.read_text()
 needle='(void)setsockopt(sockfd, SOL_IP, IP_BIND_ADDRESS_NO_PORT, &on, sizeof(on));'
 assert s.count(needle)==1, 'Unexpected libcurl version: SOL_IP callsite changed'
-s=s.replace(needle, '#if defined(SOL_IP)\\n'+needle+'\\n#endif'.replace('\\n','\n'))
+s=s.replace(needle, chr(10).join(('#if defined(SOL_IP)', needle, '#endif')))
 p.write_text(s)
 print('Run13: guard Linux-specific SOL_IP option when absent on PS4 target')
 PYSOLIP
