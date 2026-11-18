@@ -1,0 +1,42 @@
+name: ReSONANCE ST2 Run13 PS4 PKG build
+on:
+  push:
+    branches:
+      - resonance-st2-run13-build
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ps4:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout isolated work branch
+        uses: actions/checkout@v4
+      - name: Verify scripts
+        shell: bash
+        run: |
+          python3 -m py_compile resonance/run13_patch.py
+          bash -n resonance/build_run13.sh
+      - name: Compile and package real PS4 binary
+        shell: bash
+        run: bash resonance/build_run13.sh
+      - name: Preserve build status and diagnostics
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p run13_output
+          test -f run13_build.log && cp run13_build.log run13_output/build.log || true
+          if [[ -f run13_output/Resonance-v01.42.pkg && -f run13_output/eboot.bin ]]; then
+            echo "PKG_CREATED_UNTESTED" > run13_output/BUILD_STATUS.txt
+          else
+            echo "NOT_BUILT" > run13_output/BUILD_STATUS.txt
+          fi
+      - name: Upload candidate PKG or failure logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resonance-st2-run13-build
+          path: run13_output/
+          if-no-files-found: warn
+          retention-days: 14
