@@ -151,6 +151,16 @@ STEP=build-missing-ps4-openssl-and-curl
 if [[ ! -s "$PS4_SYSROOT/lib/libssl.a" || ! -s "$PS4_SYSROOT/lib/libcrypto.a" ]]; then
   echo 'Missing PS4 OpenSSL archives: compiling OpenSSL 1.1.1w for x86_64 FreeBSD PS4 target'
   git clone --quiet --depth 1 --branch OpenSSL_1_1_1w https://github.com/openssl/openssl.git "$PS4_BUILD_ROOT/src/openssl"
+  python3 - "$PS4_BUILD_ROOT/src/openssl/crypto/rand/rand_unix.c" <<'PYRND'
+from pathlib import Path
+import sys
+p=Path(sys.argv[1]);s=p.read_text()
+old='#if (defined(__FreeBSD__) || defined(__NetBSD__)) && !defined(OPENSSL_SYS_UEFI)'
+new=old+' && !defined(__ORBIS__)'
+assert s.count(old)==1
+p.write_text(s.replace(old,new))
+print('OpenSSL PS4: omit unsupported sysctl entropy backend; runtime TLS RNG requires PS4 validation')
+PYRND
   python3 - "$PS4_BUILD_ROOT/src/openssl/crypto/bio/bss_dgram.c" <<'PYSSL'
 from pathlib import Path
 import sys
