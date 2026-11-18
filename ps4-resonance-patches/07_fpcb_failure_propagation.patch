@@ -1,0 +1,83 @@
+--- a/core/oslib/virtmem.h
++++ b/core/oslib/virtmem.h
+@@ -28,8 +28,14 @@
+ bool init(void **vmem_base_addr, void **sh4rcb_addr, size_t ramSize);
+ // To reset the on-demand allocated pages.
+ void reset_mem(void *ptr, unsigned size_bytes);
+-// To handle a fault&allocate an ondemand page.
++// To handle a fault and allocate an on-demand page.
++// PS4 mapping failures must propagate to bm_lockedWrite instead of allowing
++// its subsequent pagefill to write into an unmapped page.
++#if defined(__ORBIS__)
++bool ondemand_page(void *address, unsigned size_bytes);
++#else
+ void ondemand_page(void *address, unsigned size_bytes);
++#endif
+ // To create the mappings in the address space.
+ void create_mappings(const Mapping *vmem_maps, unsigned nummaps);
+ // Just tries to wipe as much as possible in the relevant area.
+--- a/core/hw/mem/addrspace.cpp
++++ b/core/hw/mem/addrspace.cpp
+@@ -370,7 +370,13 @@
+ 	{
+ 		// Alloc the page then and initialize it to default values
+ 		void *aligned_addr = (void*)(ptrint & (~PAGE_MASK));
++#if defined(__ORBIS__)
++		// The PS4 direct mapping can fail: never pagefill an unmapped FPCB page.
++		if (!virtmem::ondemand_page(aligned_addr, PAGE_SIZE))
++			return false;
++#else
+ 		virtmem::ondemand_page(aligned_addr, PAGE_SIZE);
++#endif
+ 		bm_vmem_pagefill((void**)aligned_addr, PAGE_SIZE);
+ 		return true;
+ 	}
+--- a/shell/ps4/ps4_vmem.cpp
++++ b/shell/ps4/ps4_vmem.cpp
+@@ -263,7 +263,7 @@
+ 
+ // The fpcb page holding `address`: maps the whole 2 MiB piece around it (clipped to the fpcb)
+ // and fills it with "no block yet" (the caller, bm_lockedWrite, fills its own page again).
+-void ondemand_page(void *address, unsigned size_bytes)
++bool ondemand_page(void *address, unsigned size_bytes)
+ {
+ 	u8 *fpcbStart = sh4rcbBase;
+ 	u8 *fpcbEnd = sh4rcbBase + kFpcbSize;
+@@ -277,8 +277,7 @@
+ 	{
+ 		trace("vmem: invalid FPCB demand page: address %p, bytes %u, range [%p, %p)",
+ 				address, size_bytes, fpcbStart, fpcbEnd);
+-		verify(false);
+-		return;
++		return false;
+ 	}
+ 	u8 *start = std::max(fpcbStart, (u8 *)((uintptr_t)address & ~(uintptr_t)(kLarge - 1)));
+ 	u8 *end = std::min(fpcbEnd, (u8 *)(((uintptr_t)address & ~(uintptr_t)(kLarge - 1)) + kLarge));
+@@ -287,23 +286,22 @@
+ 	if (chunk >= fpcbChunkMapped.size())
+ 	{
+ 		trace("vmem: invalid FPCB chunk index %zu (count %zu)", chunk, fpcbChunkMapped.size());
+-		verify(false);
+-		return;
++		return false;
+ 	}
+ 	if (fpcbChunkMapped[chunk])
+ 	{
+ 		// already mapped (a fault on a page mapped meanwhile by another thread): nothing to do
+-		return;
++		return true;
+ 	}
+ 	const bool ok = mapFixed(start, end - start, physSh4rcb + (start - sh4rcbBase), true);
+ 	if (!ok)
+ 	{
+ 		trace("vmem: FPCB chunk %zu mapping failed; pagefill skipped", chunk);
+-		verify(false);
+-		return;
++		return false;
+ 	}
+ 	bm_vmem_pagefill((void **)start, (u32)(end - start));
+ 	fpcbChunkMapped[chunk] = true;
++	return true;
+ }
+ 
+ void create_mappings(const Mapping *vmem_maps, unsigned nummaps)
