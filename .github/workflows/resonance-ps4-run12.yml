@@ -1,0 +1,28 @@
+name: ReSONANCE PS4 cloud build (Run12)
+on:
+  push:
+    branches:
+      - resonance-ps4-cloud-build-20261118
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ps4-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout build orchestration only
+        uses: actions/checkout@v4
+      - name: Fetch official Flycast, apply reviewed patches, try actual PS4 build
+        shell: bash
+        run: bash ps4-resonance-patches/run12_ci_build.sh
+      - name: Upload diagnostics and any successfully built PKG
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resonance-run12
+          path: build-output/
+          if-no-files-found: warn
+          retention-days: 14
