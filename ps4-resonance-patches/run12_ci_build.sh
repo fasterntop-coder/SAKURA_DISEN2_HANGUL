@@ -177,7 +177,13 @@ PYSSL
     export CFLAGS="-target x86_64-pc-freebsd12-elf -D__ORBIS__ -D__PS4__ -D__OPENORBIS__ -fPIC --sysroot=$OPENORBIS -I$OPENORBIS/include -I$PS4_SYSROOT/include"
     ./Configure BSD-x86_64 no-shared no-asm no-tests no-dso no-threads no-devcryptoeng no-idea no-md2 --prefix="$PS4_SYSROOT" --openssldir="$PS4_SYSROOT/etc/ssl"
     make -j2 build_libs
-    make install_sw
+    # install_sw unexpectedly builds the openssl CLI, which cannot link as a
+    # native Linux executable with PS4-target CFLAGS. Only static archives
+    # and headers are needed by libcurl/Flycast.
+    mkdir -p "$PS4_SYSROOT/include/openssl" "$PS4_SYSROOT/lib"
+    cp -a include/openssl/. "$PS4_SYSROOT/include/openssl/"
+    cp -a libcrypto.a libssl.a "$PS4_SYSROOT/lib/"
+    echo 'OpenSSL PS4 static archives and headers copied (no host CLI link)'
   )
 fi
 test -s "$PS4_SYSROOT/lib/libssl.a"
