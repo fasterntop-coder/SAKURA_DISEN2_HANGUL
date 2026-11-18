@@ -1,0 +1,33 @@
+--- a/shell/ps4/ps4_vmem.cpp
++++ b/shell/ps4/ps4_vmem.cpp
+@@ -274,16 +274,26 @@
+ 	u8 *end = std::min(fpcbEnd, (u8 *)(((uintptr_t)address & ~(uintptr_t)(kLarge - 1)) + kLarge));
+ 	// pieces numbered from the 2 MiB boundary at or below the fpcb's start
+ 	const size_t chunk = (((uintptr_t)address & ~(uintptr_t)(kLarge - 1)) - ((uintptr_t)fpcbStart & ~(uintptr_t)(kLarge - 1))) / kLarge;
+-	if (chunk < fpcbChunkMapped.size() && fpcbChunkMapped[chunk])
++	if (chunk >= fpcbChunkMapped.size())
++	{
++		trace("vmem: invalid FPCB chunk index %zu (count %zu)", chunk, fpcbChunkMapped.size());
++		verify(false);
++		return;
++	}
++	if (fpcbChunkMapped[chunk])
+ 	{
+ 		// already mapped (a fault on a page mapped meanwhile by another thread): nothing to do
+ 		return;
+ 	}
+ 	const bool ok = mapFixed(start, end - start, physSh4rcb + (start - sh4rcbBase), true);
+-	verify(ok);
++	if (!ok)
++	{
++		trace("vmem: FPCB chunk %zu mapping failed; pagefill skipped", chunk);
++		verify(false);
++		return;
++	}
+ 	bm_vmem_pagefill((void **)start, (u32)(end - start));
+-	if (chunk < fpcbChunkMapped.size())
+-		fpcbChunkMapped[chunk] = true;
++	fpcbChunkMapped[chunk] = true;
+ }
+ 
+ void create_mappings(const Mapping *vmem_maps, unsigned nummaps)
