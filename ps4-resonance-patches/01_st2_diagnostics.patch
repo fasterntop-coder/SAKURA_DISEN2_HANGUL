@@ -1,0 +1,33 @@
+--- a/core/emulator.cpp
++++ b/core/emulator.cpp
+@@ -607,21 +607,30 @@
+ 			{
+ 				std::string extension = get_file_extension(settings.content.path);
+ 				if (extension != "elf")
+ 				{
+ 					if (gdr::initDrive(settings.content.path))
+ 					{
+ 						loadGameSpecificSettings();
++						// Targeted diagnostics only; no game timing or BIOS selection is altered.
++						const bool st2Diag = settings.content.gameId == "HDR-0082";
++						if (st2Diag)
++							NOTICE_LOG(BOOT, "[ST2-DIAG] Effective settings: Reios=%d FastGDRomLoad=%d RamMod32MB=%d",
++								int(bool(config::UseReios)), int(bool(config::FastGDRomLoad)), int(bool(config::RamMod32MB)));
+ 						if (config::UseReios || !nvmem::loadFiles())
+ 						{
++							if (st2Diag)
++								NOTICE_LOG(BOOT, "[ST2-DIAG] HLE selected: Reios option is ON OR real BIOS load failed");
+ 							nvmem::loadHle();
+ 							NOTICE_LOG(BOOT, "Did not load BIOS, using reios");
+ 							if (!config::UseReios && config::UseReios.isReadOnly())
+ 								os_notify(i18n::T("This game requires a real BIOS"), 15000);
+ 						}
++						else if (st2Diag)
++							NOTICE_LOG(BOOT, "[ST2-DIAG] Real BIOS loaded successfully");
+ 					}
+ 					else
+ 					{
+ 						// Content load failed. Boot the BIOS
+ 						settings.content.path.clear();
+ 						if (!nvmem::loadFiles())
+ 							throw FlycastException(i18n::Ts("This media cannot be loaded"));
