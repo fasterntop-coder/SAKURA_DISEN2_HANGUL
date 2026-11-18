@@ -84,18 +84,28 @@ with dest.open('w') as o:
     for path in sorted(root.iterdir()): print('  '+str(path.relative_to(root)),file=o)
 print(dest.read_text())
 PYINV
-STEP=validate-sdk-and-mesa
+STEP=adapt-sdk-build-environment
 export OPENORBIS="$BASE/sdk/linux/openorbis"
 export PS4_BUILD_ROOT="$BASE/buildroot"
 export FLYCAST_SRC="$BASE/flycast"
 export JOBS=2
 export RESONANCE_VERSION=01.42
+export PS4_SYSROOT="$PS4_BUILD_ROOT/sysroot"
 mkdir -p "$PS4_BUILD_ROOT/build" "$PS4_BUILD_ROOT/logs" "$PS4_BUILD_ROOT/out" "$PS4_BUILD_ROOT/oelf"
-for p in "$OPENORBIS/ps4vars.sh" "$OPENORBIS/cmake/ps4.cmake" "$BASE/sdk/linux/sysroot/lib/libc++.a" "$BASE/sdk/linux/mesa/src/amd/vulkan/libvulkan_radeon.a"; do
+for p in "$OPENORBIS/cmake/ps4.cmake" "$OPENORBIS/bin/create-fself" "$BASE/sdk/linux/sysroot/lib/libc++.a" "$BASE/sdk/linux/mesa/src/amd/vulkan/libvulkan_radeon.a"; do
     if [[ ! -e "$p" ]]; then echo "MISSING PS4 SDK/Mesa dependency: $p" >&2; exit 45; fi
 done
+if [[ ! -f "$OPENORBIS/ps4vars.sh" ]]; then
+    # The SDK-v2 snapshot omits PacBrew ps4vars.sh. Only provide its env setup,
+    # never invent a missing compiler, linker or PS4 library.
+    printf '%s\n' 'export OO_PS4_TOOLCHAIN="$OPENORBIS"' 'export PATH="$OPENORBIS/bin:$OPENORBIS/bin/linux:$PATH"' > "$OPENORBIS/ps4vars.sh"
+    echo 'Created build-only environment adapter for missing ps4vars.sh'
+fi
 ln -s "$BASE/sdk/linux/sysroot" "$PS4_BUILD_ROOT/sysroot"
 ln -s "$BASE/sdk/linux/mesa" "$PS4_BUILD_ROOT/build/mesa"
+if [[ ! -e "$OPENORBIS/bin/linux/PkgTool.Core" ]]; then
+    echo 'Packaging tool absent: will still attempt actual PS4 compilation; PKG needs separate packaging backend.'
+fi
 
 STEP=install-clang-21
 sudo apt-get update -y
@@ -109,6 +119,8 @@ fi
 command -v clang++-21
 
 STEP=actual-ps4-cmake-compile-link
+# Explicitly use the extracted Mesa static build, not a nonexisting HOME/resonance-build copy.
+sed -i 's|-DUSE_VULKAN=ON|-DPS4_MESA_BUILD="$PS4_BUILD_ROOT/build/mesa" -DUSE_VULKAN=ON|' "$BASE/resonance/scripts/configure-flycast.sh"
 bash "$BASE/resonance/scripts/rebuild-flycast.sh"
 
 STEP=actually-package-ps4
