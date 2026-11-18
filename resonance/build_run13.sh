@@ -78,6 +78,17 @@ done
 ln -s "$SDK/linux/sysroot" "$WORK/sysroot"
 ln -s "$SDK/linux/mesa" "$WORK/build/mesa"
 mkdir -p "$WORK/logs" "$WORK/oelf" "$WORK/out"
+say "Inspect PS4 sysroot dependencies before compiling"
+for dep in libnfs.a libsmb2.a libcurl.a libssl.a libcrypto.a libdolphinps4_rt.a libzstd.a liblz4.a; do
+  test -e "$WORK/sysroot/lib/$dep" && echo "PRESENT $dep" || echo "MISSING $dep"
+done
+say "Build pinned PS4 netfs libs from their public source repositories"
+git clone https://github.com/sahlberg/libnfs.git "$WORK/src/libnfs"
+git -C "$WORK/src/libnfs" checkout 7613236464317bee2d9636f087f995148de4db27
+git clone https://github.com/sahlberg/libsmb2.git "$WORK/src/libsmb2"
+git -C "$WORK/src/libsmb2" checkout e94eee9465d55ed094ace2c038a8705b4822dada
+bash "$RES/scripts/build-netfs.sh"
+say "Netfs cross-compile complete"
 say "Compile Flycast for PS4/FreeBSD ABI"
 bash "$RES/scripts/configure-flycast.sh"
 bash "$RES/scripts/build-flycast.sh" -k 0
